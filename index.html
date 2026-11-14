@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alpine.js Contact Form — Formclick</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.5/dist/cdn.min.js"></script>
+</head>
+<body>
+  <main class="page">
+
+    <!-- All state and behaviour lives in contactForm() below. -->
+    <section class="card" x-data="contactForm()">
+      <template x-if="status === 'sent'">
+        <div>
+          <h1>Thanks!</h1>
+          <p class="desc">Your message has been sent. We'll get back to you soon.</p>
+          <button type="button" @click="status = 'idle'">Send another message</button>
+        </div>
+      </template>
+
+      <template x-if="status !== 'sent'">
+        <div>
+          <h1>Contact us</h1>
+          <p class="desc">Send us a message and we'll get back to you.</p>
+
+          <form @submit.prevent="submit">
+            <!-- Honeypot: hidden from people, bots fill it and the submission is discarded -->
+            <input type="text" name="_honeypot" x-model="fields._honeypot" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+            <div class="row">
+              <div class="field">
+                <label for="name">Name</label>
+                <input id="name" name="name" x-model="fields.name" placeholder="Jane Smith" required>
+              </div>
+              <div class="field">
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" x-model="fields.email" placeholder="jane@example.com" required>
+              </div>
+            </div>
+            <div class="field">
+              <label for="message">Message</label>
+              <textarea id="message" name="message" x-model="fields.message" placeholder="Write your message…" required></textarea>
+            </div>
+
+            <button type="submit" :disabled="status === 'sending'" x-text="status === 'sending' ? 'Sending…' : 'Send message'">Send message</button>
+            <p class="msg msg-error" role="alert" x-show="status === 'error'" x-text="error"></p>
+          </form>
+        </div>
+      </template>
+    </section>
+
+  </main>
+
+  <script>
+    // Formclick form API: one POST request, no backend of your own.
+    const ENDPOINT = 'https://api.formclick.io/submit';
+    // Your form's access key from the Formclick dashboard.
+    // It can only create submissions, so it's safe in client-side code.
+    const ACCESS_KEY = 'YOUR_ACCESS_KEY';
+
+    function contactForm() {
+      return {
+        fields: { name: '', email: '', message: '', _honeypot: '' },
+        status: 'idle', // idle | sending | sent | error
+        error: '',
+
+        async submit() {
+          if (!ACCESS_KEY || ACCESS_KEY === 'YOUR_ACCESS_KEY') {
+            this.status = 'error';
+            this.error = 'Set ACCESS_KEY in the script at the bottom of index.html to your Formclick access key.';
+            return;
+          }
+
+          this.status = 'sending';
+          this.error = '';
+          try {
+            const res = await fetch(ENDPOINT, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify({ ...this.fields, access_key: ACCESS_KEY, subject: 'New message from the Alpine.js contact form' }),
+            });
+            const result = await res.json(); // { success, message }
+
+            if (res.ok && result.success) {
+              this.status = 'sent';
+              this.fields = { name: '', email: '', message: '', _honeypot: '' };
+            } else if (res.status === 429) {
+              this.status = 'error';
+              this.error = 'Too many attempts. Please wait a few minutes and try again.';
+            } else {
+              this.status = 'error';
+              this.error = result.message || 'Something went wrong. Please try again.';
+            }
+          } catch {
+            this.status = 'error';
+            this.error = 'Network error. Please check your connection and try again.';
+          }
+        },
+      };
+    }
+  </script>
+</body>
+</html>
